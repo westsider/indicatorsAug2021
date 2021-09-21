@@ -19,6 +19,10 @@ using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.Core.FloatingPoint;
 using NinjaTrader.NinjaScript.DrawingTools;
+// screenshot
+using System.Windows.Media.Imaging;
+using System.Net.Mail;
+using System.Net.Mime;
 #endregion
 
 //This namespace holds Indicators in this folder and is required. Do not change it. 
@@ -29,9 +33,18 @@ namespace NinjaTrader.NinjaScript.Indicators
 		private CCI CCI1;
 		private NinjaTrader.NinjaScript.Indicators.LizardIndicators.amaCurrentWeekVWAP amaCurrentWeekVWAP1;
 		private int filterVwapSetting = 2;
-		
 		private double threshold = 100.0;
 		private double threshold2 = 200.0;
+		// mail server
+		private string toEmailAddress = "3103824522@tmomail.net";
+		private string fromEmailAddress = "drones@swiftsense.org";
+		private string serverPass = "Jesse2005#";
+		private string myServer = "imap.stackmail.com";
+		private int myPort = 587;
+		// screen shot
+		NinjaTrader.Gui.Chart.Chart 	chart;
+        BitmapFrame 					outputFrame;
+		private bool ScreenShotSent 	= false;
 		
 		protected override void OnStateChange()
 		{
@@ -57,6 +70,10 @@ namespace NinjaTrader.NinjaScript.Indicators
 			}
 			else if (State == State.Configure)
 			{
+				Dispatcher.BeginInvoke(new Action(() =>
+				{
+					chart = Window.GetWindow(ChartControl) as Chart;
+				})); 
 			}
 			else if (State == State.DataLoaded)
 			{				
@@ -73,12 +90,12 @@ namespace NinjaTrader.NinjaScript.Indicators
 				// filter 1 long only below vwap
 				if (Low[0] <=  amaCurrentWeekVWAP1.SessionVWAP[0] && FilterVwap) {
 					Draw.TriangleUp(this, "buythis"+CurrentBar, false, 0, Low[0] - 2 * TickSize, Brushes.Blue);
-					sendAlert(message: "yo", sound: AlertSOund );
+					sendAlert(message: "Long Entry @ " + Close[0].ToString("N2"), sound: AlertSOund );
 				}
 				// filter 2 short onli above std dev 1
 				if (Low[0] <=  amaCurrentWeekVWAP1.LowerBand1[0] && FilterStdDev1) {
 					Draw.TriangleUp(this, "buyin"+CurrentBar, false, 0, Low[0] - 2 * TickSize, Brushes.Blue);
-					sendAlert(message: "yo", sound: AlertSOund );
+					sendAlert(message: "Long Entry @ " + Close[0].ToString("N2"), sound: AlertSOund );
 				}
 				
 			}
@@ -87,11 +104,11 @@ namespace NinjaTrader.NinjaScript.Indicators
 			{
 				if (High[0] >=  amaCurrentWeekVWAP1.SessionVWAP[0] && FilterVwap ) {
 					Draw.TriangleDown(this, "sellin"+CurrentBar, false, 0, High[0] + 2 * TickSize, Brushes.Red);
-					sendAlert(message: "yo", sound: AlertSOund );
+					sendAlert(message: "Short Entry @ " + Close[0].ToString("N2"), sound: AlertSOund );
 				}
 				if (High[0] >=  amaCurrentWeekVWAP1.UpperBand1[0] && FilterStdDev1) {
 					Draw.TriangleDown(this, "sellit"+CurrentBar, false, 0, High[0] + 2 * TickSize, Brushes.Red);
-					sendAlert(message: "yo", sound: AlertSOund );
+					sendAlert(message: "Short Entry @ " + Close[0].ToString("N2"), sound: AlertSOund );
 				}
 			}
 			
@@ -101,10 +118,68 @@ namespace NinjaTrader.NinjaScript.Indicators
 			if (CurrentBar < Count -2 || !AlertOn) return;
 			message += " " + Bars.Instrument.MasterInstrument.Name;
 			Alert("myAlert"+CurrentBar, Priority.High, message, NinjaTrader.Core.Globals.InstallDir+@"\sounds\"+ AlertSOund,10, Brushes.Black, Brushes.Yellow);  
-//			if ( AlertOn ) {
-//				SendMail("whansen1@mac.com", "Trade Alert", message + " " );
-//			}	
+			if ( AlertOn ) {
+				//SendMail("whansen1@mac.com", "Trade Alert", message + " " );
+				if (!ScreenShotSent)
+				{
+					SendMailChart("Trade Alert "+ message ,"This is the body of the email",fromEmailAddress,toEmailAddress,myServer,587,fromEmailAddress,serverPass);
+					ScreenShotSent = true;
+				}
+			}	
 		}
+		
+		private void SendMailChart(string Subject, string Body, string From, string To, string Host, int Port, string Username, string Password)
+		{
+			
+			try	
+			{	
+
+				Dispatcher.BeginInvoke(new Action(() =>
+				{
+				
+						if (chart != null)
+				        {
+							
+							RenderTargetBitmap	screenCapture = chart.GetScreenshot(ShareScreenshotType.Chart);
+		                    outputFrame = BitmapFrame.Create(screenCapture);
+							
+		                    if (screenCapture != null)
+		                    {
+		                       
+								PngBitmapEncoder png = new PngBitmapEncoder();
+		                        png.Frames.Add(outputFrame);
+								System.IO.MemoryStream stream = new System.IO.MemoryStream();
+								png.Save(stream);
+								stream.Position = 0;
+							
+								MailMessage theMail = new MailMessage(From, To, Subject, Body);
+								System.Net.Mail.Attachment attachment = new System.Net.Mail.Attachment(stream, "image.png");
+								theMail.Attachments.Add(attachment);
+							
+								SmtpClient smtp = new SmtpClient(Host, Port);
+								smtp.EnableSsl = true;
+								smtp.Credentials = new System.Net.NetworkCredential(Username, Password);
+								string token = Instrument.MasterInstrument.Name + ToDay(Time[0]) + " " + ToTime(Time[0]) + CurrentBar.ToString();
+								
+								Print("Sending Mail!");
+								smtp.SendAsync(theMail, token);
+		                  
+				            }
+						}
+			
+			    
+				}));
+
+				
+				
+			}
+			catch (Exception ex) {
+				
+				Print("Sending Chart email failed -  " + ex);
+			
+			}
+		}
+	
 
 		#region Properties
 		[NinjaScriptProperty]
