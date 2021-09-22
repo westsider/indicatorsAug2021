@@ -113,7 +113,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 			}
 			Draw.TextFixed(this, "MyTextFixed", message, TextPosition.TopLeft);
 			
-			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime  && ToTime(Time[0]) < endTime && !crossed) { 
+			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime  && ToTime(Time[0]) < endTime && !crossed && ShowOpen) { 
 				rthBarCount = CurrentBar - startBar;
 				RemoveDrawObject("open" + lastBar); 
 				Draw.Line(this, "open" + CurrentBar, false, rthBarCount, Open_D, 0, Open_D, Brushes.DimGray, DashStyleHelper.Dot, 2);
