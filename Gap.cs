@@ -39,6 +39,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 		private double Y_Low = 0.0;
 		private bool inRange = false;
 		private bool crossed = false;
+		private bool showOpenLine = false;
 		
 		protected override void OnStateChange()
 		{
@@ -87,13 +88,26 @@ namespace NinjaTrader.NinjaScript.Indicators
 				Gap_D = Open_D - Close_D;
 				message =  Time[0].ToShortDateString() + " "  + Time[0].ToShortTimeString() + "   Open: " + Open_D.ToString() +  "   Gap: " + Gap_D.ToString();
 				//if ( inRange ) { message += "\t In Range";} else {  message += "\t Outside Range";}
-				Print(message);
+				//Print(message);
 				crossed = false;
 				startBar = CurrentBars[0];
 			}
 			
-			if (BarsInProgress == 0 && ToTime(Time[0]) == startTime ) { 
-				
+			// only show open line starting 5 days ago
+			if (BarsInProgress == 1 && ToTime(Time[0]) == startTime ) { 
+		
+		        // Get the current DateTime.
+		        DateTime now = DateTime.Now;
+				DateTime startDTE = now.AddDays(-5);
+		        // Get the TimeSpan of the difference.
+		        TimeSpan elapsed = now.Subtract(startDTE);
+		        // Get number of days ago.
+		        double daysAgo = elapsed.TotalDays;
+		       // Print(startDTE.ToShortDateString() + " was " + daysAgo.ToString("0") + " days ago");
+				if (Time[0].ToShortDateString()  == startDTE.ToShortDateString() ) {
+					Print(Time[0] + " is 5 days ago");
+					showOpenLine = true;
+				}
 			}
 			/// close
 			if (BarsInProgress == 1 && ToTime(Time[0]) == endTime ) { 
@@ -118,20 +132,18 @@ namespace NinjaTrader.NinjaScript.Indicators
 				//if ( inRange ) { message += "  In Range";} else {  message += "  Outside Range";}
 			}
 			Draw.TextFixed(this, "MyTextFixed", message, TextPosition.TopLeft);
+		
 			
-			
-			
-			
-			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime  && ToTime(Time[0]) < endTime && !crossed && ShowOpen) { 
+			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime  && ToTime(Time[0]) < endTime && !crossed && ShowOpen && showOpenLine) { 
 				rthBarCount = CurrentBars[0] - startBar;
 				
 				//if ( rthBarCount > 1 && Open_D > 0.0 && CurrentBar > 20) {
 					RemoveDrawObject("open" + lastBar); 
-					Print("CurrentBar " + CurrentBars[0] +  " rthBarCount " + rthBarCount );
+					//Print("CurrentBar " + CurrentBars[0] +  " rthBarCount " + rthBarCount );
 					Draw.Line(this, "open" + CurrentBar, false, rthBarCount, Open_D, 0, Open_D, Brushes.DimGray, DashStyleHelper.Dot, 2);
 				//}
 				var ibEnd = startTime + 10000;
-				Print(startTime + " " + ibEnd );
+				//Print(startTime + " " + ibEnd );
 				if (High[0] >= Open_D && Low[0] <= Open_D) {
 					if (ToTime(Time[0]) > ibEnd) {
 						Draw.Dot(this, "cross" + CurrentBar, false, 0, High[0], Brushes.DodgerBlue);
