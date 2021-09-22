@@ -33,10 +33,12 @@ namespace NinjaTrader.NinjaScript.Indicators
 		private long startTime = 0;
 		private	long endTime = 0;
 		private int startBar = 0;
+		private int lastBar = 0;
 		private int rthBarCount = 0;
 		private double Y_High = 0.0;
 		private double Y_Low = 0.0;
 		private bool inRange = false;
+		private bool crossed = false;
 		
 		protected override void OnStateChange()
 		{
@@ -55,8 +57,10 @@ namespace NinjaTrader.NinjaScript.Indicators
 				//Disable this property if your indicator requires custom values that cumulate with each new market data event. 
 				//See Help Guide for additional information.
 				IsSuspendedWhileInactive					= true;
-				RTHopen						= DateTime.Parse("06:30", System.Globalization.CultureInfo.InvariantCulture);
-				RTHclose					= DateTime.Parse("13:00", System.Globalization.CultureInfo.InvariantCulture);
+				RTHopen						= DateTime.Parse("08:30", System.Globalization.CultureInfo.InvariantCulture);
+				RTHclose					= DateTime.Parse("15:00", System.Globalization.CultureInfo.InvariantCulture);
+				
+				ShowOpen					= true;
 			}
 			else if (State == State.Configure)
 			{
@@ -73,20 +77,24 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 			if ("Sunday"  == Time[0].DayOfWeek.ToString()) { return; }
 			
+			lastBar = CurrentBar - 1;
+			
+			// open
 			if (BarsInProgress == 1 && ToTime(Time[0]) == startTime ) { 
 				Open_D = Open[0];
 				Gap_D = Open_D - Close_D;
 				message =  Time[0].ToShortDateString() + " "  + Time[0].ToShortTimeString() + "   Open: " + Open_D.ToString() +  "   Gap: " + Gap_D.ToString();
 				//if ( inRange ) { message += "\t In Range";} else {  message += "\t Outside Range";}
 				Print(message);
-				//Draw.Dot(this, "open"+CurrentBar, false, 0, Open_D, Brushes.White);
+				crossed = false;
 			}
 			
+			/// close
 			if (BarsInProgress == 1 && ToTime(Time[0]) == endTime ) { 
 				Close_D = Close[0];
 				//Print(Time[0].ToShortDateString() + " \t" + Time[0].ToShortTimeString() + "\t close: " + Close_D.ToString());
 				//Draw.Dot(this, "close"+CurrentBar, false, 0, Close_D, Brushes.White);
-				
+				crossed = false;
 			}
 			
 			/// pre market gap
@@ -104,6 +112,21 @@ namespace NinjaTrader.NinjaScript.Indicators
 				//if ( inRange ) { message += "  In Range";} else {  message += "  Outside Range";}
 			}
 			Draw.TextFixed(this, "MyTextFixed", message, TextPosition.TopLeft);
+			
+			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime  && ToTime(Time[0]) < endTime && !crossed) { 
+				rthBarCount = CurrentBar - startBar;
+				RemoveDrawObject("open" + lastBar); 
+				Draw.Line(this, "open" + CurrentBar, false, rthBarCount, Open_D, 0, Open_D, Brushes.DimGray, DashStyleHelper.Dot, 2);
+				var ibEnd = startTime + 10000;
+				Print(startTime + " " + ibEnd );
+				if (High[0] >= Open_D && Low[0] <= Open_D) {
+					if (ToTime(Time[0]) > ibEnd) {
+						Draw.Dot(this, "cross" + CurrentBar, false, 0, High[0], Brushes.DodgerBlue);
+						crossed = true;
+					}
+				}
+			}
+			
 		}
 		
 		private void yesterdaysRange(bool debug) {
@@ -140,6 +163,11 @@ namespace NinjaTrader.NinjaScript.Indicators
 		[Display(Name="RTHclose", Order=2, GroupName="Parameters")]
 		public DateTime RTHclose
 		{ get; set; }
+		
+		[NinjaScriptProperty]
+		[Display(Name="Show Open", Order=3, GroupName="Parameters")]
+		public bool ShowOpen
+		{ get; set; }
 		#endregion
 
 	}
@@ -152,18 +180,18 @@ namespace NinjaTrader.NinjaScript.Indicators
 	public partial class Indicator : NinjaTrader.Gui.NinjaScript.IndicatorRenderBase
 	{
 		private Gap[] cacheGap;
-		public Gap Gap(DateTime rTHopen, DateTime rTHclose)
+		public Gap Gap(DateTime rTHopen, DateTime rTHclose, bool showOpen)
 		{
-			return Gap(Input, rTHopen, rTHclose);
+			return Gap(Input, rTHopen, rTHclose, showOpen);
 		}
 
-		public Gap Gap(ISeries<double> input, DateTime rTHopen, DateTime rTHclose)
+		public Gap Gap(ISeries<double> input, DateTime rTHopen, DateTime rTHclose, bool showOpen)
 		{
 			if (cacheGap != null)
 				for (int idx = 0; idx < cacheGap.Length; idx++)
-					if (cacheGap[idx] != null && cacheGap[idx].RTHopen == rTHopen && cacheGap[idx].RTHclose == rTHclose && cacheGap[idx].EqualsInput(input))
+					if (cacheGap[idx] != null && cacheGap[idx].RTHopen == rTHopen && cacheGap[idx].RTHclose == rTHclose && cacheGap[idx].ShowOpen == showOpen && cacheGap[idx].EqualsInput(input))
 						return cacheGap[idx];
-			return CacheIndicator<Gap>(new Gap(){ RTHopen = rTHopen, RTHclose = rTHclose }, input, ref cacheGap);
+			return CacheIndicator<Gap>(new Gap(){ RTHopen = rTHopen, RTHclose = rTHclose, ShowOpen = showOpen }, input, ref cacheGap);
 		}
 	}
 }
@@ -172,14 +200,14 @@ namespace NinjaTrader.NinjaScript.MarketAnalyzerColumns
 {
 	public partial class MarketAnalyzerColumn : MarketAnalyzerColumnBase
 	{
-		public Indicators.Gap Gap(DateTime rTHopen, DateTime rTHclose)
+		public Indicators.Gap Gap(DateTime rTHopen, DateTime rTHclose, bool showOpen)
 		{
-			return indicator.Gap(Input, rTHopen, rTHclose);
+			return indicator.Gap(Input, rTHopen, rTHclose, showOpen);
 		}
 
-		public Indicators.Gap Gap(ISeries<double> input , DateTime rTHopen, DateTime rTHclose)
+		public Indicators.Gap Gap(ISeries<double> input , DateTime rTHopen, DateTime rTHclose, bool showOpen)
 		{
-			return indicator.Gap(input, rTHopen, rTHclose);
+			return indicator.Gap(input, rTHopen, rTHclose, showOpen);
 		}
 	}
 }
@@ -188,14 +216,14 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
 	public partial class Strategy : NinjaTrader.Gui.NinjaScript.StrategyRenderBase
 	{
-		public Indicators.Gap Gap(DateTime rTHopen, DateTime rTHclose)
+		public Indicators.Gap Gap(DateTime rTHopen, DateTime rTHclose, bool showOpen)
 		{
-			return indicator.Gap(Input, rTHopen, rTHclose);
+			return indicator.Gap(Input, rTHopen, rTHclose, showOpen);
 		}
 
-		public Indicators.Gap Gap(ISeries<double> input , DateTime rTHopen, DateTime rTHclose)
+		public Indicators.Gap Gap(ISeries<double> input , DateTime rTHopen, DateTime rTHclose, bool showOpen)
 		{
-			return indicator.Gap(input, rTHopen, rTHclose);
+			return indicator.Gap(input, rTHopen, rTHclose, showOpen);
 		}
 	}
 }
