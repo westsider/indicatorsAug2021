@@ -77,7 +77,9 @@ namespace NinjaTrader.NinjaScript.Indicators
 
 			if ("Sunday"  == Time[0].DayOfWeek.ToString()) { return; }
 			
-			lastBar = CurrentBar - 1;
+			if (BarsInProgress == 1 ) {
+			lastBar = CurrentBars[0] - 1;
+			}
 			
 			// open
 			if (BarsInProgress == 1 && ToTime(Time[0]) == startTime ) { 
@@ -87,8 +89,12 @@ namespace NinjaTrader.NinjaScript.Indicators
 				//if ( inRange ) { message += "\t In Range";} else {  message += "\t Outside Range";}
 				Print(message);
 				crossed = false;
+				startBar = CurrentBars[0];
 			}
 			
+			if (BarsInProgress == 0 && ToTime(Time[0]) == startTime ) { 
+				
+			}
 			/// close
 			if (BarsInProgress == 1 && ToTime(Time[0]) == endTime ) { 
 				Close_D = Close[0];
@@ -104,7 +110,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 				//Print(message);
 			}
 			
-			yesterdaysRange(debug: false);
+			//yesterdaysRange(debug: false);
 			
 			// after open
 			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime ) { 
@@ -113,10 +119,17 @@ namespace NinjaTrader.NinjaScript.Indicators
 			}
 			Draw.TextFixed(this, "MyTextFixed", message, TextPosition.TopLeft);
 			
+			
+			
+			
 			if (BarsInProgress == 1 && ToTime(Time[0]) > startTime  && ToTime(Time[0]) < endTime && !crossed && ShowOpen) { 
-				rthBarCount = CurrentBar - startBar;
-				RemoveDrawObject("open" + lastBar); 
-				Draw.Line(this, "open" + CurrentBar, false, rthBarCount, Open_D, 0, Open_D, Brushes.DimGray, DashStyleHelper.Dot, 2);
+				rthBarCount = CurrentBars[0] - startBar;
+				
+				//if ( rthBarCount > 1 && Open_D > 0.0 && CurrentBar > 20) {
+					RemoveDrawObject("open" + lastBar); 
+					Print("CurrentBar " + CurrentBars[0] +  " rthBarCount " + rthBarCount );
+					Draw.Line(this, "open" + CurrentBar, false, rthBarCount, Open_D, 0, Open_D, Brushes.DimGray, DashStyleHelper.Dot, 2);
+				//}
 				var ibEnd = startTime + 10000;
 				Print(startTime + " " + ibEnd );
 				if (High[0] >= Open_D && Low[0] <= Open_D) {
@@ -125,9 +138,11 @@ namespace NinjaTrader.NinjaScript.Indicators
 						crossed = true;
 					}
 				}
-			}
-			
+			}	
 		}
+		
+		
+		
 		
 		private void yesterdaysRange(bool debug) {
 			if (BarsInProgress == 0 && ToTime(Time[0]) == startTime ) { 
